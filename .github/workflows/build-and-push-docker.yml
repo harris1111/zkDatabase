@@ -9,6 +9,7 @@ env:
   DOCKER_REPO_BROKER_SERVICE: orochinetwork/zkdb-broker-service
   DOCKER_REPO_PROOF_SERVICE: orochinetwork/zkdb-proof-service
   DOCKER_REPO_SERVERLESS: orochinetwork/zkdb-serverless
+  DOCKER_REPO_FTP: orochinetwork/zkdb-ftp
   NPM_ACCESS_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
 
 jobs:
@@ -55,6 +56,7 @@ jobs:
           PACKAGE_MAP["packages/serverless"]=1
           PACKAGE_MAP["packages/broker-service"]=2
           PACKAGE_MAP["packages/proof-service"]=3
+          PACKAGE_MAP["packages/ftp"]=4  # New mapping for zkdb-ftp
 
           # Loop through the detected changes and map the packages to numbers
           for PACKAGE in "${PACKAGE_ARRAY[@]}"; do
@@ -70,6 +72,10 @@ jobs:
               "packages/proof-service")
                 FILTERED_PACKAGES="$FILTERED_PACKAGES ${PACKAGE_MAP["packages/proof-service"]}"
                 echo "proof-service changed (mapped to 3)"
+                ;;
+              "packages/ftp")  # New case for zkdb-ftp
+                FILTERED_PACKAGES="$FILTERED_PACKAGES ${PACKAGE_MAP["packages/ftp"]}"
+                echo "ftp changed (mapped to 4)"
                 ;;
               *)
                 echo "No match for package: $PACKAGE"
@@ -87,6 +93,7 @@ jobs:
           else
             echo "filtered_packages=$FILTERED_PACKAGES" >> $GITHUB_OUTPUT
           fi
+
 
   build:
     name: Build & Push Docker Images
@@ -155,3 +162,47 @@ jobs:
           else
             echo "Serverless Service not in changed packages."
           fi
+      - name: Build & Push FTP Service Image
+        run: |
+          echo "Filtered Packages: ${{ needs.detect-changes.outputs.filtered_packages }}"
+          if [[ "${{ needs.detect-changes.outputs.filtered_packages }}" == *"4"* ]]; then
+            echo "Building and pushing FTP Service..."
+            echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_ACCESS_TOKEN }}" > npm-token
+            docker build -t ${{ env.DOCKER_REPO_FTP }}:latest \
+              -f packages/ftp/Dockerfile \
+              --platform=linux/amd64 \
+              --secret id=npm,src=npm-token .
+            docker tag ${{ env.DOCKER_REPO_FTP }}:latest ${{ env.DOCKER_REPO_FTP }}:${{ github.sha }}
+            docker push ${{ env.DOCKER_REPO_FTP }}:latest
+            docker push ${{ env.DOCKER_REPO_FTP }}:${{ github.sha }}
+          else
+            echo "FTP Service not in changed packages."
+          fi
+      - name: GitOps - Clone and Push Changes
+        run: |
+          # Set Git configuration
+          git config --global user.email "minhan112001@gmail.com"
+          git config --global user.name "GitOps Automation"
+
+          # Clone GitOps repository and checkout the specified branch
+          git clone git@github.com:ZKP-Labs/test-argoCD.git
+          cd test-argoCD
+          git checkout gitopsbranch
+
+          # Navigate to the specific service directory
+          cd services/orochi/zkDatabase/serverless/zkdb-serverless
+
+          # Fetch the latest changes
+          git fetch origin
+
+          # Make the necessary changes (adjust your versioning and logic here)
+          git add .
+          git commit -m "Update version from ${previousVersion} to ${version}"
+          git push origin gitopsbranch
+
+          echo "Pushed changes to GitOps successfully"
+
+        env:
+          gitOpsBranch: ""  # Define the branch here or pass it dynamically
+          previousVersion: ""  # Define your versioning strategy
+          version: ""
