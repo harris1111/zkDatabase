@@ -11,7 +11,7 @@ env:
 jobs:
   detect-changes:
     name: Detect Changes
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     outputs:
       filtered_packages: ${{ steps.filter.outputs.filtered_packages }}
 
@@ -24,8 +24,6 @@ jobs:
       - name: Detect last two merge commits and diff
         id: changed
         run: |
-          git stash
-          git checkout main
           # Find the last two merge commits
           LAST_MERGE=$(git log --merges --pretty=format:'%H' -n 2)
           MERGE_ARRAY=($LAST_MERGE)
