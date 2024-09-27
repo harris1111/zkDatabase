@@ -6,16 +6,12 @@ on:
       - main
 
 env:
-  DOCKER_REPO_BROKER_SERVICE: orochinetwork/zkdb-broker-service
-  DOCKER_REPO_PROOF_SERVICE: orochinetwork/zkdb-proof-service
-  DOCKER_REPO_SERVERLESS: orochinetwork/zkdb-serverless
-  DOCKER_REPO_FTP: orochinetwork/zkdb-ftp
-  NPM_ACCESS_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
+  version: ${{ github.sha }}  # Assuming the tag is the commit SHA
 
 jobs:
   detect-changes:
     name: Detect Changes
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     outputs:
       filtered_packages: ${{ steps.filter.outputs.filtered_packages }}
 
@@ -23,20 +19,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2 # Fetch enough commit history
+          fetch-depth: 10  # Fetch enough commit history
 
-      - name: Detect changed packages
+      - name: Detect last two merge commits and diff
         id: changed
         run: |
-          # Detect all changed packages
-          CHANGED_PACKAGES=$(git diff --name-only HEAD~1 HEAD -- packages/ | cut -d '/' -f 1-2 | sort -u)
+          git stash
+          git checkout main
+          # Find the last two merge commits
+          LAST_MERGE=$(git log --merges --pretty=format:'%H' -n 2)
+          MERGE_ARRAY=($LAST_MERGE)
+          LAST_MERGE_COMMIT=${MERGE_ARRAY[0]}
+          PREV_MERGE_COMMIT=${MERGE_ARRAY[1]}
+          
+          # Show the two merge commits
+          echo "Last merge commit: $LAST_MERGE_COMMIT"
+          echo "Previous merge commit: $PREV_MERGE_COMMIT"
+          
+          # Get the diff between the two merge commits
+          CHANGED_PACKAGES=$(git diff --name-only $PREV_MERGE_COMMIT $LAST_MERGE_COMMIT -- packages/ | cut -d '/' -f 1-2 | sort -u)
           echo "Detected changes: $CHANGED_PACKAGES"
 
-          # Clean up carriage returns or special characters and split on new lines
           CLEANED_PACKAGES=$(echo "$CHANGED_PACKAGES" | tr -d '\r' | tr '\n' ' ')
           echo "Cleaned packages: $CLEANED_PACKAGES"
-
-          # Save cleaned package names to environment
+          
+          # Save the package names to the environment
           echo "changed_packages=$CLEANED_PACKAGES" >> $GITHUB_ENV
 
       - name: Filter packages using case statement and map to numbers
@@ -45,60 +52,31 @@ jobs:
           CHANGED_PACKAGES="${{ env.changed_packages }}"
           FILTERED_PACKAGES=""
 
-          # Debugging - print out each package to see what's being processed
-          echo "Changed packages: $CHANGED_PACKAGES"
-
-          # Split the CHANGED_PACKAGES string into an array
-          IFS=' ' read -r -a PACKAGE_ARRAY <<< "$CHANGED_PACKAGES"
-
-          # Declare an associative array to map package names to numbers
+          # Map package paths to package numbers
           declare -A PACKAGE_MAP
           PACKAGE_MAP["packages/serverless"]=1
           PACKAGE_MAP["packages/broker-service"]=2
           PACKAGE_MAP["packages/proof-service"]=3
-          PACKAGE_MAP["packages/ftp"]=4  # New mapping for zkdb-ftp
+          PACKAGE_MAP["packages/ftp"]=4
 
-          # Loop through the detected changes and map the packages to numbers
+          IFS=' ' read -r -a PACKAGE_ARRAY <<< "$CHANGED_PACKAGES"
           for PACKAGE in "${PACKAGE_ARRAY[@]}"; do
             case $PACKAGE in
-              "packages/serverless")
-                FILTERED_PACKAGES="$FILTERED_PACKAGES ${PACKAGE_MAP["packages/serverless"]}"
-                echo "serverless changed (mapped to 1)"
-                ;;
-              "packages/broker-service")
-                FILTERED_PACKAGES="$FILTERED_PACKAGES ${PACKAGE_MAP["packages/broker-service"]}"
-                echo "broker-service changed (mapped to 2)"
-                ;;
-              "packages/proof-service")
-                FILTERED_PACKAGES="$FILTERED_PACKAGES ${PACKAGE_MAP["packages/proof-service"]}"
-                echo "proof-service changed (mapped to 3)"
-                ;;
-              "packages/ftp")  # New case for zkdb-ftp
-                FILTERED_PACKAGES="$FILTERED_PACKAGES ${PACKAGE_MAP["packages/ftp"]}"
-                echo "ftp changed (mapped to 4)"
-                ;;
-              *)
-                echo "No match for package: $PACKAGE"
-                ;;
+              "packages/serverless") FILTERED_PACKAGES="$FILTERED_PACKAGES 1" ;;
+              "packages/broker-service") FILTERED_PACKAGES="$FILTERED_PACKAGES 2" ;;
+              "packages/proof-service") FILTERED_PACKAGES="$FILTERED_PACKAGES 3" ;;
+              "packages/ftp") FILTERED_PACKAGES="$FILTERED_PACKAGES 4" ;;
             esac
           done
 
-          # Trim any leading/trailing spaces in FILTERED_PACKAGES
+          # Output filtered packages
           FILTERED_PACKAGES=$(echo $FILTERED_PACKAGES | xargs)
-
-          # Output the mapped numbers using Environment Files and set job output
-          if [ -z "$FILTERED_PACKAGES" ]; then
-            echo "No required packages changed."
-            exit 0
-          else
-            echo "filtered_packages=$FILTERED_PACKAGES" >> $GITHUB_OUTPUT
-          fi
-
+          echo "filtered_packages=$FILTERED_PACKAGES" >> $GITHUB_OUTPUT
 
   build:
-    name: Build & Push Docker Images
+    name: Build & Push Docker Images and Push to GitOps
     needs: detect-changes
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -112,97 +90,66 @@ jobs:
           username: ${{ secrets.DOCKER_HUB_USER }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
-      - name: Build & Push Broker Service Image
+      - name: Build & Push Docker Images and Push to GitOps
         run: |
-          echo "Filtered Packages: ${{ needs.detect-changes.outputs.filtered_packages }}"
-          if [[ "${{ needs.detect-changes.outputs.filtered_packages }}" == *"2"* ]]; then
-            echo "Building and pushing Broker Service..."
-            echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_ACCESS_TOKEN }}" > npm-token
-            docker build -t ${{ env.DOCKER_REPO_BROKER_SERVICE }}:latest \
-              -f packages/broker-service/Dockerfile \
-              --platform=linux/amd64 \
-              --secret id=npm,src=npm-token .
-            docker tag ${{ env.DOCKER_REPO_BROKER_SERVICE }}:latest ${{ env.DOCKER_REPO_BROKER_SERVICE }}:${{ github.sha }}
-            docker push ${{ env.DOCKER_REPO_BROKER_SERVICE }}:latest
-            docker push ${{ env.DOCKER_REPO_BROKER_SERVICE }}:${{ github.sha }}
-          else
-            echo "Broker Service not in changed packages."
-          fi
+          GITOPSBRANCH="devops/test-gitops"
+          # Define arrays for services, docker repos, and values.yaml paths
+          SERVICES=("serverless" "broker-service" "proof-service" "ftp")
+          DOCKER_REPOS=(
+            "orochinetwork/zkdb-serverless"
+            "orochinetwork/zkdb-broker-service"
+            "orochinetwork/zkdb-proof-service"
+            "orochinetwork/zkdb-ftp"
+          )
+          VALUES_PATHS=(
+            "services/orochi/zkDatabase/serverless/zkdb-serverless/values.yaml"
+            "services/orochi/zkDatabase/broker/zkdb-broker/values.yaml"
+            "services/orochi/zkDatabase/proof/zkdb-proof/values.yaml"
+            "services/orochi/zkDatabase/ftp/zkdb-ftp/values.yaml"
+          )
 
-      - name: Build & Push Proof Service Image
-        run: |
-          echo "Filtered Packages: ${{ needs.detect-changes.outputs.filtered_packages }}"
-          if [[ "${{ needs.detect-changes.outputs.filtered_packages }}" == *"3"* ]]; then
-            echo "Building and pushing Proof Service..."
-            echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_ACCESS_TOKEN }}" > npm-token
-            docker build -t ${{ env.DOCKER_REPO_PROOF_SERVICE }}:latest \
-              -f packages/proof-service/Dockerfile \
-              --platform=linux/amd64 \
-              --secret id=npm,src=npm-token .
-            docker tag ${{ env.DOCKER_REPO_PROOF_SERVICE }}:latest ${{ env.DOCKER_REPO_PROOF_SERVICE }}:${{ github.sha }}
-            docker push ${{ env.DOCKER_REPO_PROOF_SERVICE }}:latest
-            docker push ${{ env.DOCKER_REPO_PROOF_SERVICE }}:${{ github.sha }}
-          else
-            echo "Proof Service not in changed packages."
-          fi
+          # Set up SSH for GitOps push
+          eval $(ssh-agent -s)
+          echo "${{ secrets.SSH_KEY }}" | tr -d '\r' | ssh-add -
+          mkdir -p ~/.ssh
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
 
-      - name: Build & Push Serverless Service Image
-        run: |
-          echo "Filtered Packages: ${{ needs.detect-changes.outputs.filtered_packages }}"
-          if [[ "${{ needs.detect-changes.outputs.filtered_packages }}" == *"1"* ]]; then
-            echo "Building and pushing Serverless Service..."
-            echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_ACCESS_TOKEN }}" > npm-token
-            docker build -t ${{ env.DOCKER_REPO_SERVERLESS }}:latest \
-              -f packages/serverless/Dockerfile \
-              --platform=linux/amd64 \
-              --secret id=npm,src=npm-token .
-            docker tag ${{ env.DOCKER_REPO_SERVERLESS }}:latest ${{ env.DOCKER_REPO_SERVERLESS }}:${{ github.sha }}
-            docker push ${{ env.DOCKER_REPO_SERVERLESS }}:latest
-            docker push ${{ env.DOCKER_REPO_SERVERLESS }}:${{ github.sha }}
-          else
-            echo "Serverless Service not in changed packages."
-          fi
-      - name: Build & Push FTP Service Image
-        run: |
-          echo "Filtered Packages: ${{ needs.detect-changes.outputs.filtered_packages }}"
-          if [[ "${{ needs.detect-changes.outputs.filtered_packages }}" == *"4"* ]]; then
-            echo "Building and pushing FTP Service..."
-            echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_ACCESS_TOKEN }}" > npm-token
-            docker build -t ${{ env.DOCKER_REPO_FTP }}:latest \
-              -f packages/ftp/Dockerfile \
-              --platform=linux/amd64 \
-              --secret id=npm,src=npm-token .
-            docker tag ${{ env.DOCKER_REPO_FTP }}:latest ${{ env.DOCKER_REPO_FTP }}:${{ github.sha }}
-            docker push ${{ env.DOCKER_REPO_FTP }}:latest
-            docker push ${{ env.DOCKER_REPO_FTP }}:${{ github.sha }}
-          else
-            echo "FTP Service not in changed packages."
-          fi
-      - name: GitOps - Clone and Push Changes
-        run: |
-          # Set Git configuration
-          git config --global user.email "minhan112001@gmail.com"
-          git config --global user.name "GitOps Automation"
+          # Process each service dynamically using arrays
+          for i in ${!SERVICES[@]}; do
+            SERVICE="${SERVICES[$i]}"
+            DOCKER_REPO="${DOCKER_REPOS[$i]}"
+            VALUES_PATH="${VALUES_PATHS[$i]}"
+            NUM=$((i + 1))
 
-          # Clone GitOps repository and checkout the specified branch
-          git clone git@github.com:ZKP-Labs/test-argoCD.git
-          cd test-argoCD
-          git checkout gitopsbranch
+            # Ensure Docker repo is not empty before proceeding
+            if [[ -n "$DOCKER_REPO" && "${{ needs.detect-changes.outputs.filtered_packages }}" == *"$NUM"* ]]; then
+              echo "Building and pushing $SERVICE..."
+              echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_ACCESS_TOKEN }}" > npm-token 
 
-          # Navigate to the specific service directory
-          cd services/orochi/zkDatabase/serverless/zkdb-serverless
+              # Build the Docker image with a valid tag
+              docker build -t "$DOCKER_REPO:latest" \
+                -f "packages/$SERVICE/Dockerfile" \
+                --secret id=npm,src=./npm-token \
+                --platform=linux/amd64 .
+              # docker push "$DOCKER_REPO:latest"
 
-          # Fetch the latest changes
-          git fetch origin
+              # GitOps push for the service
+              # Clone the GitOps repository (once for all services)
+              git config --global user.name "GitOps Updater"
+              git config --global user.email "minhan112001@gmail.com"
+              git clone git@github.com:ZKP-Labs/test-argoCD.git
+              cd test-argoCD
+              git checkout ${GITOPSBRANCH}
+              sed -i "s| tag: .*| tag: ${version}|" "$VALUES_PATH"
+              git fetch origin
+              git add "$VALUES_PATH"
+              git commit -m "$SERVICE: Update version to ${version}"
+              git push origin ${GITOPSBRANCH}
+            else
+              echo "$SERVICE not changed or invalid Docker repo, skipping."
+            fi
+          done
 
-          # Make the necessary changes (adjust your versioning and logic here)
-          git add .
-          git commit -m "Update version from ${previousVersion} to ${version}"
-          git push origin gitopsbranch
-
-          echo "Pushed changes to GitOps successfully"
-
-        env:
-          gitOpsBranch: ""  # Define the branch here or pass it dynamically
-          previousVersion: ""  # Define your versioning strategy
-          version: ""
+          # Clean up GitOps repo
+          cd ..
+          rm -rf test-argoCD
