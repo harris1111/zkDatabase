@@ -1,7 +1,5 @@
 import { PublicKey } from 'o1js';
-import { Database } from '../../types/database.js';
-import { User } from '../../types/user.js';
-import { FilterCriteria } from '../../types/common.js';
+import { Database, User, FilterCriteria, Pagination } from '../../types';
 
 /* eslint-disable no-unused-vars */
 export interface GlobalContext {
@@ -10,7 +8,9 @@ export interface GlobalContext {
     merkleHeight: number,
     publicKey: PublicKey
   ): Promise<boolean>;
-  databases(filter?: FilterCriteria): Promise<Database[]>;
-  databases(): Promise<Database[]>;
-  users(filter?: FilterCriteria): Promise<User[]>;
+  databases(
+    filter?: FilterCriteria,
+    pagination?: Pagination
+  ): Promise<Database[]>;
+  users(filter?: FilterCriteria, pagination?: Pagination): Promise<User[]>;
 }

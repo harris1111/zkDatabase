@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      
+
 env:
   DOCKER_REPO_BROKER_SERVICE: orochinetwork/zkdb-broker-service
   DOCKER_REPO_PROOF_SERVICE: orochinetwork/zkdb-proof-service
@@ -15,7 +15,7 @@ env:
 jobs:
   detect-changes:
     name: Detect Changes
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     outputs:
       filtered_packages: ${{ steps.filter.outputs.filtered_packages }}
 
@@ -23,7 +23,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # Fetch enough commit history
+          fetch-depth: 2 # Fetch enough commit history
 
       - name: Detect changed packages
         id: changed
@@ -31,7 +31,7 @@ jobs:
           # Detect all changed packages
           CHANGED_PACKAGES=$(git diff --name-only HEAD~1 HEAD -- packages/ | cut -d '/' -f 1-2 | sort -u)
           echo "Detected changes: $CHANGED_PACKAGES"
-          
+
           # Clean up carriage returns or special characters and split on new lines
           CLEANED_PACKAGES=$(echo "$CHANGED_PACKAGES" | tr -d '\r' | tr '\n' ' ')
           echo "Cleaned packages: $CLEANED_PACKAGES"
@@ -98,7 +98,7 @@ jobs:
   build:
     name: Build & Push Docker Images
     needs: detect-changes
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
