@@ -193,6 +193,10 @@ async function createDocument(
     session,
   });
 
+  if (!documentSchema) {
+    throw new Error('Cannot get documentSchema');
+  }
+
   const {
     permissionOwner: collectionPermissionOwner,
     permissionGroup: collectionPermissionGroup,
@@ -313,14 +317,14 @@ async function updateDocument(
 
     await modelDocument.updateOne(
       oldDocumentRecord.docId,
-      documentRecord!,
+      documentRecord,
       session
     );
 
     const witness = await proveUpdateDocument(
       databaseName,
       collectionName,
-      oldDocumentRecord.docId!,
+      oldDocumentRecord.docId,
       update,
       session
     );
@@ -529,21 +533,17 @@ async function findDocumentsWithMetadata(
 
       const metadata: DocumentMetadata = {
         merkleIndex: documentRecord.metadata.merkleIndex,
-        owners: {
-          group: documentRecord.metadata.group,
-          owner: documentRecord.metadata.owner,
-        },
-        permissions: {
-          permissionOwner: PermissionBinary.fromBinaryPermission(
-            documentRecord.metadata.permissionOwner
-          ),
-          permissionGroup: PermissionBinary.fromBinaryPermission(
-            documentRecord.metadata.permissionGroup
-          ),
-          permissionOther: PermissionBinary.fromBinaryPermission(
-            documentRecord.metadata.permissionOther
-          ),
-        },
+        groupName: documentRecord.metadata.group,
+        userName: documentRecord.metadata.owner,
+        permissionOwner: PermissionBinary.fromBinaryPermission(
+          documentRecord.metadata.permissionOwner
+        ),
+        permissionGroup: PermissionBinary.fromBinaryPermission(
+          documentRecord.metadata.permissionGroup
+        ),
+        permissionOther: PermissionBinary.fromBinaryPermission(
+          documentRecord.metadata.permissionOther
+        ),
       };
 
       const object = {
