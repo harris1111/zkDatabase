@@ -21,10 +21,10 @@ jobs:
       - name: Detect last two merge commits and diff
         id: changed
         run: |
-          # debug
-            # git stash
-            # git checkout main
-          # debug
+          // debug
+            // git stash
+            // git checkout main
+          // debug
         
           LAST_MERGE=$(git log --merges --pretty=format:'%H' -n 10)
           MERGE_ARRAY=($LAST_MERGE)
@@ -85,9 +85,9 @@ jobs:
       - name: Build & Push Docker Images
         id: build
         run: |
-          # debug
-          #   SERVICES=("serverless" "broker" "proof" "ftp")
-          # debug
+          // debug
+          //   SERVICES=("serverless" "broker" "proof" "ftp")
+          // debug
           DOCKER_REPOS=(
             "orochinetwork/zkdb-serverless"
             "orochinetwork/zkdb-broker-service"
@@ -134,7 +134,7 @@ jobs:
           echo "Changed services: $CHANGED_SERVICES"
           for SERVICE in "${CHANGED_SERVICES_ARRAY[@]}"; do
             VALUES_PATH="services/orochi/zkDatabase/$SERVICE/zkdb-$SERVICE/values.yaml"
-            sed -i "s| tag: .*| tag: "latest"|" "$VALUES_PATH"
+            sed -i "s| tag: .*| tag: "latestt"|" "$VALUES_PATH"
             git add "$VALUES_PATH"
           done
 
