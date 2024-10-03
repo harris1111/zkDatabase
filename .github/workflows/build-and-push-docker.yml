@@ -21,11 +21,6 @@ jobs:
       - name: Detect last two merge commits and diff
         id: changed
         run: |
-          # debug
-          # git stash
-          # git checkout main
-          # debug
-        
           LAST_MERGE=$(git log --merges --pretty=format:'%H' -n 10)
           MERGE_ARRAY=($LAST_MERGE)
           LAST_MERGE_COMMIT=${MERGE_ARRAY[0]}
@@ -85,9 +80,6 @@ jobs:
       - name: Build & Push Docker Images
         id: build
         run: |
-          # debug
-          # SERVICES=("serverless" "broker" "proof" "ftp")
-          # debug
           DOCKER_REPOS=(
             "orochinetwork/zkdb-serverless"
             "orochinetwork/zkdb-broker-service"
