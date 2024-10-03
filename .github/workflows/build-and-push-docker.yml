@@ -84,11 +84,17 @@ jobs:
         id: build
         run: |
           SERVICES=("serverless" "broker" "proof" "ftp")
+          # DOCKER_REPOS=(
+          #   "orochinetwork/zkdb-serverless"
+          #   "orochinetwork/zkdb-broker-service"
+          #   "orochinetwork/zkdb-proof-service"
+          #   "orochinetwork/zkdb-ftp"
+          # )
           DOCKER_REPOS=(
-            "orochinetwork/zkdb-serverless"
-            "orochinetwork/zkdb-broker-service"
-            "orochinetwork/zkdb-proof-service"
-            "orochinetwork/zkdb-ftp"
+            "harris1111/zkdb-serverless"
+            "harris1111/zkdb-broker-service"
+            "harris1111/zkdb-proof-service"
+            "harris1111/zkdb-ftp"
           )
           CHANGED_SERVICES=""
           for i in ${!SERVICES[@]}; do
@@ -104,9 +110,11 @@ jobs:
                 -f "packages/$SERVICE/Dockerfile" \
                 --secret id=npm,src=./npm-token \
                 --platform=linux/amd64 .
-              docker tag "$DOCKER_REPO:latest" "$DOCKER_REPO:${{ env.version }}"
+              
               docker push "$DOCKER_REPO:latest"
+              docker tag "$DOCKER_REPO:latest" "$DOCKER_REPO:${{ env.version }}"
               docker push "$DOCKER_REPO:${{ env.version }}"
+              
               CHANGED_SERVICES="$CHANGED_SERVICES $SERVICE"
             else
               echo "$SERVICE not changed or invalid Docker repo, skipping."
