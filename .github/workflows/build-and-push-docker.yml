@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-
+      - devops/test-ci-cd
 jobs:
   detect-changes:
     name: Detect Changes
