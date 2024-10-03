@@ -66,7 +66,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       changed_services: ${{ steps.build.outputs.changed_services }}
-
+    env:
+      version: ${{ github.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -114,7 +115,7 @@ jobs:
               docker push "$DOCKER_REPO:latest"
               docker tag "$DOCKER_REPO:latest" "$DOCKER_REPO:${{ env.version }}"
               docker push "$DOCKER_REPO:${{ env.version }}"
-              
+
               CHANGED_SERVICES="$CHANGED_SERVICES $SERVICE"
             else
               echo "$SERVICE not changed or invalid Docker repo, skipping."
