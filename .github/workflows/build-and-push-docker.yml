@@ -31,12 +31,14 @@ jobs:
           
           CHANGED_PACKAGES=$(git diff --name-only $PREV_MERGE_COMMIT $LAST_MERGE_COMMIT -- packages/ | cut -d '/' -f 1-2 | sort -u)
           CLEANED_PACKAGES=$(echo "$CHANGED_PACKAGES" | tr -d '\r' | tr '\n' ' ')
+          echo "Cleaned packages: $CLEANED_PACKAGES"
           echo "changed_packages=$CLEANED_PACKAGES" >> $GITHUB_ENV
 
       - name: Filter packages using case statement and map to numbers
         id: filter
         run: |
           CHANGED_PACKAGES="${{ env.changed_packages }}"
+          echo "Changed packages: $CHANGED_PACKAGES"
           FILTERED_PACKAGES=""
           declare -A PACKAGE_MAP
           PACKAGE_MAP["packages/serverless"]=1
@@ -55,6 +57,7 @@ jobs:
           done
 
           FILTERED_PACKAGES=$(echo $FILTERED_PACKAGES | xargs)
+          echo "Filtered packages: ${FILTERED_PACKAGES[@]}"
           echo "filtered_packages=$FILTERED_PACKAGES" >> $GITHUB_OUTPUT
 
   build:
@@ -80,6 +83,7 @@ jobs:
       - name: Build & Push Docker Images
         id: build
         run: |
+          SERVICES=("serverless" "broker" "proof" "ftp")
           DOCKER_REPOS=(
             "orochinetwork/zkdb-serverless"
             "orochinetwork/zkdb-broker-service"
@@ -126,7 +130,7 @@ jobs:
           echo "Changed services: $CHANGED_SERVICES"
           for SERVICE in "${CHANGED_SERVICES_ARRAY[@]}"; do
             VALUES_PATH="services/orochi/zkDatabase/$SERVICE/zkdb-$SERVICE/values.yaml"
-            sed -i "s| tag: .*| tag: "latestt"|" "$VALUES_PATH"
+            sed -i "s| tag: .*| tag: "latesttt"|" "$VALUES_PATH"
             git add "$VALUES_PATH"
           done
 
