@@ -97,14 +97,16 @@ jobs:
             NUM=$((i + 1))
             if [[ -n "$DOCKER_REPO" && "${{ needs.detect-changes.outputs.filtered_packages }}" == *"$NUM"* ]]; then
               echo "Building and pushing $SERVICE..."
-              echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_ACCESS_TOKEN }}" > npm-token
-              docker build -t ${{ env.DOCKER_REPO_BROKER_SERVICE }}:latest \
-                -f packages/broker-service/Dockerfile \
-                --platform=linux/amd64 \
-                --secret id=npm,src=npm-token .
-              docker tag ${{ env.DOCKER_REPO_BROKER_SERVICE }}:latest ${{ env.DOCKER_REPO_BROKER_SERVICE }}:${{ github.sha }}
-              docker push ${{ env.DOCKER_REPO_BROKER_SERVICE }}:latest
-              docker push ${{ env.DOCKER_REPO_BROKER_SERVICE }}:${{ github.sha }}
+              echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_ACCESS_TOKEN }}" > npm-token 
+
+              # Build the Docker image with a valid tag
+              docker build -t "$DOCKER_REPO:latest" \
+                -f "packages/$SERVICE/Dockerfile" \
+                --secret id=npm,src=./npm-token \
+                --platform=linux/amd64 .
+              docker tag "$DOCKER_REPO:latest" "$DOCKER_REPO:${{ env.version }}"
+              docker push "$DOCKER_REPO:latest"
+              docker push "$DOCKER_REPO:${{ env.version }}"
               CHANGED_SERVICES="$CHANGED_SERVICES $SERVICE"
             else
               echo "$SERVICE not changed or invalid Docker repo, skipping."
