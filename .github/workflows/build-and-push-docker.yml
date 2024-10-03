@@ -26,10 +26,10 @@ jobs:
           #   git checkout main
           # # debug
         
-          LAST_MERGE=$(git log --merges --pretty=format:'%H' -n 2)
+          LAST_MERGE=$(git log --merges --pretty=format:'%H' -n 10)
           MERGE_ARRAY=($LAST_MERGE)
           LAST_MERGE_COMMIT=${MERGE_ARRAY[0]}
-          PREV_MERGE_COMMIT=${MERGE_ARRAY[1]}
+          PREV_MERGE_COMMIT=${MERGE_ARRAY[9]}
           
           echo "Last merge commit: $LAST_MERGE_COMMIT"
           echo "Previous merge commit: $PREV_MERGE_COMMIT"
@@ -134,7 +134,7 @@ jobs:
           echo "Changed services: $CHANGED_SERVICES"
           for SERVICE in "${CHANGED_SERVICES_ARRAY[@]}"; do
             VALUES_PATH="services/orochi/zkDatabase/$SERVICE/zkdb-$SERVICE/values.yaml"
-            sed -i "s| tag: .*| tag: ${{ env.version }}|" "$VALUES_PATH"
+            sed -i "s| tag: .*| tag: "latest"|" "$VALUES_PATH"
             git add "$VALUES_PATH"
           done
 
