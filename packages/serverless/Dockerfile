@@ -45,7 +45,7 @@ COPY --from=builder /usr/src/app/yarn.lock /usr/src/app/yarn.lock
 
 # Ensure the non-root user owns the working directory
 RUN chown -R appuser:appuser /usr/src/app
-
+RUN ls
 # Switch to the non-root user
 USER appuser
 
