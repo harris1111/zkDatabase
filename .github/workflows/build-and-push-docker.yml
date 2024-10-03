@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - devops/test-ci-cd
+
 jobs:
   detect-changes:
     name: Detect Changes
@@ -85,12 +86,6 @@ jobs:
         id: build
         run: |
           SERVICES=("serverless" "broker" "proof" "ftp")
-          # DOCKER_REPOS=(
-          #   "orochinetwork/zkdb-serverless"
-          #   "orochinetwork/zkdb-broker-service"
-          #   "orochinetwork/zkdb-proof-service"
-          #   "orochinetwork/zkdb-ftp"
-          # )
           DOCKER_REPOS=(
             "harris1111/zkdb-serverless"
             "harris1111/zkdb-broker-service"
@@ -121,7 +116,7 @@ jobs:
               echo "$SERVICE not changed or invalid Docker repo, skipping."
             fi
           done
-          echo "::set-output name=changed_services::$CHANGED_SERVICES"
+          echo "changed_services=$CHANGED_SERVICES" >> $GITHUB_OUTPUT
 
   gitops-push:
     name: Push Changes to GitOps
@@ -131,7 +126,7 @@ jobs:
       version: ${{ github.sha }}
       gitopsbranch: devops/test-gitops
     steps:
-      - name: Set up SSH
+      - name: Push changes to GitOps
         run: |
           eval $(ssh-agent -s)
           echo "${{ secrets.SSH_KEY }}" | tr -d '\r' | ssh-add -
@@ -149,7 +144,7 @@ jobs:
           echo "Changed services: $CHANGED_SERVICES"
           for SERVICE in "${CHANGED_SERVICES_ARRAY[@]}"; do
             VALUES_PATH="services/orochi/zkDatabase/$SERVICE/zkdb-$SERVICE/values.yaml"
-            sed -i "s| tag: .*| tag: "latestttt"|" "$VALUES_PATH"
+            sed -i "s| tag: .*| tag: ${{ env.version }}|" "$VALUES_PATH"
             git add "$VALUES_PATH"
           done
 
