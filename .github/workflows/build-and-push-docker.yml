@@ -1,14 +1,16 @@
 name: "Build & Push All Docker Images to Docker Hub"
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows:
+      - "Publish packages in zkDatabase Repository" # Name of the workflow in main.yml
+    types:
+      - completed
 
 jobs:
   build:
     name: Build & Push Docker Images and Push to GitOps
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     env:
       version: ${{ github.sha }}
       LIST_SERVICE_BUILD: "serverless mina-service"
@@ -53,7 +55,7 @@ jobs:
   gitops-push:
     name: Push Changes to GitOps
     needs: build
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     env:
       version: ${{ github.sha }}
       gitopsbranch: main
